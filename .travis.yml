@@ -5,17 +5,38 @@ dist: xenial
 addons:
   apt:
     sources:
+    - sourceline: 'ppa:ondrej/nginx'
     - sourceline: 'ppa:mhier/libboost-latest'
-    - sourceline: 'ppa:beineri/opt-qt-5.12.3-xenial'
     packages:
-    - qt512base
-    - qt512svg
-    - qt512tools
+    - libssl-dev
     - libboost1.70-dev
     - libgl1-mesa-dev
+    - libxkbcommon-x11-0
+    - libegl1-mesa
+
+# Force set QT version
+#env:
+#- QT_VERSION=5.13
 
 install:
-- source /opt/qt512/bin/qt512-env.sh
+- cd /tmp
+# E.g QT_VERSION=5.13
+- |
+  [ -z "${QT_VERSION}" ] && \
+      QT_VERSION="$(curl -s --compressed https://download.qt.io/archive/qt/ | grep /icons/folder.gif | head -n1 | sed -r 's@.*<a href="([^/]+)/">.*@\1@')"
+# E.g 5.13.2
+- QT_SUBVERSION="$(curl -s --compressed "https://download.qt.io/archive/qt/${QT_VERSION}/" | grep /icons/folder.gif | head -n1 | sed -r 's@.*<a href="([^/]+)/">.*@\1@')"
+# E.g 5
+- QT_MAJOR="$(echo "${QT_VERSION}" | cut -d. -f1)"
+- QT_EXTRACT_PATH="${HOME}/Qt"
+- curl --compressed -LOC- "https://download.qt.io/archive/qt/${QT_VERSION}/${QT_SUBVERSION}/qt-opensource-linux-x64-${QT_SUBVERSION}.run"
+- |
+  curl --compressed -sLkf https://raw.githubusercontent.com/benlau/qtci/master/bin/extract-qt-installer | \
+      QT_CI_PACKAGES="qt.qt${QT_MAJOR}.$(echo "${QT_SUBVERSION}" | tr -d '.').gcc_64" bash -s "qt-opensource-linux-x64-${QT_SUBVERSION}.run" "${QT_EXTRACT_PATH}"
+- QT_BASE_DIR="${QT_EXTRACT_PATH}/${QT_SUBVERSION}/gcc_64"
+- export PATH="${QT_BASE_DIR}/bin:${PATH}"
+- export LD_LIBRARY_PATH="${QT_BASE_DIR}/lib:${LD_LIBRARY_PATH}"
+- export PKG_CONFIG_PATH="${QT_BASE_DIR}/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
 script:
 - |
