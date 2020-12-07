@@ -39,8 +39,8 @@
 
 #ifdef Q_OS_WIN
 #include <memory>
-#include <Windows.h>
-#include <Shellapi.h>
+#include <windows.h>
+#include <shellapi.h>
 #endif
 
 #include <QAtomicInt>

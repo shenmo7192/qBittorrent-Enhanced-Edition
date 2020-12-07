@@ -30,7 +30,7 @@
 
 #ifdef Q_OS_WIN
 #include <Objbase.h>
-#include <Shlobj.h>
+#include <shlobj.h>
 #endif
 
 #include <QApplication>

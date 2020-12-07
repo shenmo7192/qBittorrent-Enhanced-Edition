@@ -34,7 +34,7 @@
 #include <type_traits>
 
 #ifdef Q_OS_WIN
-#include <Windows.h>
+#include <windows.h>
 #endif
 
 #include <libtorrent/address.hpp>

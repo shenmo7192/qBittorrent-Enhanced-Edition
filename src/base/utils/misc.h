@@ -33,7 +33,7 @@
 
 #ifdef Q_OS_WIN
 #include <memory>
-#include <Windows.h>
+#include <windows.h>
 #endif
 
 #include <QString>

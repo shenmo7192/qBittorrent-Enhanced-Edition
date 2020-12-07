@@ -35,8 +35,8 @@
 #include <QIcon>
 
 #if defined(Q_OS_WIN)
-#include <Windows.h>
-#include <Shellapi.h>
+#include <windows.h>
+#include <shellapi.h>
 #include <QtWin>
 #else
 #include <QMimeDatabase>

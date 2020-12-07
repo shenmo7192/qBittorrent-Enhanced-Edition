@@ -31,7 +31,7 @@
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <powrprof.h>
-#include <Shlobj.h>
+#include <shlobj.h>
 #else
 #include <sys/types.h>
 #include <unistd.h>

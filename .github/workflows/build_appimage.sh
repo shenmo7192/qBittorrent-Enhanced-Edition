@@ -52,7 +52,7 @@ apt install -y --no-install-suggests --no-install-recommends \
 SELF_DIR="$(dirname "$(readlink -f "${0}")")"
 
 # install qt
-curl -sSkL --compressed https://raw.githubusercontent.com/engnr/qt-downloader/master/qt-downloader | python3 - linux desktop latest gcc_64 -o "${HOME}/Qt" -m qtbase qttools qtsvg icu
+curl -sSkL --compressed https://raw.githubusercontent.com/engnr/qt-downloader/master/qt-downloader | python3 - linux desktop 5.15.2 gcc_64 -o "${HOME}/Qt" -m qtbase qttools qtsvg icu
 export QT_BASE_DIR="$(ls -rd "${HOME}/Qt"/*/gcc_64 | head -1)"
 export QTDIR=$QT_BASE_DIR
 export PATH=$QT_BASE_DIR/bin:$PATH

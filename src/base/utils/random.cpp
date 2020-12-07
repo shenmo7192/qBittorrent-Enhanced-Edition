@@ -36,8 +36,8 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <Windows.h>
-#include <Ntsecapi.h>
+#include <windows.h>
+#include <ntsecapi.h>
 #else  // Q_OS_WIN
 #include <cstdio>
 #endif
