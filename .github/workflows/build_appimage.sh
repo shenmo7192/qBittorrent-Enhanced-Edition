@@ -5,14 +5,14 @@
 # Artifacts will copy to the same directory.
 
 # Ubuntu mirror for local building
-source /etc/os-release
-cat >/etc/apt/sources.list <<EOF
-deb http://opentuna.cn/ubuntu/ ${UBUNTU_CODENAME} main restricted universe multiverse
-deb http://opentuna.cn/ubuntu/ ${UBUNTU_CODENAME}-updates main restricted universe multiverse
-deb http://opentuna.cn/ubuntu/ ${UBUNTU_CODENAME}-backports main restricted universe multiverse
-deb http://opentuna.cn/ubuntu/ ${UBUNTU_CODENAME}-security main restricted universe multiverse
-EOF
-export PIP_INDEX_URL="https://mirrors.aliyun.com/pypi/simple/"
+# source /etc/os-release
+# cat >/etc/apt/sources.list <<EOF
+# deb http://opentuna.cn/ubuntu/ ${UBUNTU_CODENAME} main restricted universe multiverse
+# deb http://opentuna.cn/ubuntu/ ${UBUNTU_CODENAME}-updates main restricted universe multiverse
+# deb http://opentuna.cn/ubuntu/ ${UBUNTU_CODENAME}-backports main restricted universe multiverse
+# deb http://opentuna.cn/ubuntu/ ${UBUNTU_CODENAME}-security main restricted universe multiverse
+# EOF
+# export PIP_INDEX_URL="https://mirrors.aliyun.com/pypi/simple/"
 
 apt update
 apt install -y software-properties-common
@@ -20,6 +20,7 @@ apt-add-repository -y ppa:savoury1/backports
 apt-add-repository -y ppa:savoury1/gcc-defaults-9
 apt update
 apt install -y --no-install-suggests --no-install-recommends \
+  git \
   curl \
   gcc \
   g++ \
@@ -61,7 +62,7 @@ export PYTHONWARNINGS=ignore:DEPRECATION
 if [ ! -d "${HOME}/Qt" ]; then
   pip3 install --upgrade 'pip<21' 'setuptools<51' 'setuptools_scm<6'
   pip3 install py7zr
-  curl -sSkL --compressed https://raw.githubusercontent.com/engnr/qt-downloader/master/qt-downloader | python3 - linux desktop 5.15.2 gcc_64 -o "${HOME}/Qt" -m qtbase qttools qtsvg icu
+  curl -sSkL --compressed https://cdn.jsdelivr.net/gh/engnr/qt-downloader@master/qt-downloader | python3 - linux desktop 5.15.2 gcc_64 -o "${HOME}/Qt" -m qtbase qttools qtsvg icu
 fi
 export QT_BASE_DIR="$(ls -rd "${HOME}/Qt"/*/gcc_64 | head -1)"
 export QTDIR=$QT_BASE_DIR
@@ -81,18 +82,20 @@ touch "/usr/src/boost/.unpack_ok"
 cd /usr/src/boost
 ./bootstrap.sh
 ./b2 install --with-system variant=release
+cd /usr/src/boost/tools/build
+./bootstrap.sh
+./b2 install
 
 # build libtorrent-rasterbar
-mkdir -p /usr/src/libtorrent-rasterbar
-[ -f /usr/src/libtorrent-rasterbar/.unpack_ok ] ||
-  curl -ksSfL https://github.com/arvidn/libtorrent/archive/RC_1_2.tar.gz |
-  tar -zxf - -C /usr/src/libtorrent-rasterbar --strip-components 1
-touch "/usr/src/libtorrent-rasterbar/.unpack_ok"
+if [ ! -d /usr/src/libtorrent-rasterbar/ ]; then
+  git clone --depth 1 --recursive --shallow-submodules --branch RC_2_0 \
+    https://github.com/arvidn/libtorrent.git \
+    /usr/src/libtorrent-rasterbar/
+fi
 cd "/usr/src/libtorrent-rasterbar/"
-CXXFLAGS="-std=c++17" CPPFLAGS="-std=c++17" ./bootstrap.sh --prefix=/usr --with-boost="/usr/local" --with-boost-libdir="/usr/local/lib" --disable-debug --disable-maintainer-mode --with-libiconv
-make clean
-make -j$(nproc)
-make install
+b2 install crypto=openssl cxxstd=17 release
+# force refresh ld.so.cache
+ldconfig
 
 # build qbittorrent
 cd "${SELF_DIR}/../../"
@@ -104,7 +107,9 @@ make install -j$(nproc)
 [ -x "/tmp/linuxdeploy-plugin-qt-x86_64.AppImage" ] || curl -LC- -o /tmp/linuxdeploy-plugin-qt-x86_64.AppImage "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
 chmod -v +x '/tmp/linuxdeploy-plugin-qt-x86_64.AppImage' '/tmp/linuxdeploy-x86_64.AppImage'
 # Fix run in docker, see: https://github.com/linuxdeploy/linuxdeploy/issues/86
-# sed -i 's|AI\x02|\x00\x00\x00|' '/tmp/linuxdeploy-plugin-qt-x86_64.AppImage' '/tmp/linuxdeploy-x86_64.AppImage'
+# and https://github.com/linuxdeploy/linuxdeploy/issues/154#issuecomment-741936850
+dd if=/dev/zero of=/tmp/linuxdeploy-plugin-qt-x86_64.AppImage conv=notrunc bs=1 count=3 seek=8
+dd if=/dev/zero of=/tmp/linuxdeploy-x86_64.AppImage conv=notrunc bs=1 count=3 seek=8
 cd "/tmp/qbee"
 mkdir -p "/tmp/qbee/AppDir/apprun-hooks/"
 echo 'export XDG_DATA_DIRS="${APPDIR:-"$(dirname "${BASH_SOURCE[0]}")/.."}/usr/share:${XDG_DATA_DIRS}:/usr/share:/usr/local/share"' >"/tmp/qbee/AppDir/apprun-hooks/xdg_data_dirs.sh"

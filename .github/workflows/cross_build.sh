@@ -17,7 +17,7 @@ export QT_XPLATFORM="${QT_XPLATFORM}"
 export QT_DEVICE="${QT_DEVICE}"
 # match qt version prefix. E.g 5 --> 5.15.2, 5.12 --> 5.12.10
 export QT_VER_PREFIX="5"
-export LIBTORRENT_BRANCH="RC_1_2"
+export LIBTORRENT_BRANCH="RC_2_0"
 export CROSS_ROOT="${CROSS_ROOT:-/cross_root}"
 
 apk add gcc \
@@ -33,7 +33,8 @@ apk add gcc \
   pkgconfig \
   linux-headers \
   zip \
-  xz
+  xz \
+  git
 
 TARGET_ARCH="${CROSS_HOST%%-*}"
 TARGET_HOST="${CROSS_HOST#*-}"
@@ -53,15 +54,13 @@ esac
 
 export PATH="${CROSS_ROOT}/bin:${PATH}"
 export CROSS_PREFIX="${CROSS_ROOT}/${CROSS_HOST}"
-export PKG_CONFIG_PATH="${CROSS_PREFIX}/opt/qt/lib/pkgconfig:${CROSS_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+export PKG_CONFIG_PATH="${CROSS_PREFIX}/opt/qt/lib/pkgconfig:${CROSS_PREFIX}/lib/pkgconfig:${CROSS_PREFIX}/share/pkgconfig:${PKG_CONFIG_PATH}"
 SELF_DIR="$(dirname "$(readlink -f "${0}")")"
 
 mkdir -p "${CROSS_ROOT}" \
   /usr/src/zlib \
   /usr/src/openssl \
   /usr/src/boost \
-  /usr/src/libiconv \
-  /usr/src/libtorrent \
   /usr/src/qtbase \
   /usr/src/qttools
 
@@ -115,9 +114,12 @@ if [ ! -f "${SELF_DIR}/boost.tar.bz2" ]; then
 fi
 tar -jxf "${SELF_DIR}/boost.tar.bz2" --strip-components=1 -C /usr/src/boost
 cd /usr/src/boost
+echo "using gcc : cross : ${CROSS_HOST}-g++ ;" >~/user-config.jam
 ./bootstrap.sh
-sed -i "s/using gcc.*/using gcc : cross : ${CROSS_HOST}-g++ ;/" project-config.jam
 ./b2 install --prefix="${CROSS_PREFIX}" --with-system toolset=gcc-cross variant=release link=static runtime-link=static
+cd /usr/src/boost/tools/build
+./bootstrap.sh
+./b2 install --prefix="${CROSS_ROOT}"
 
 # qt
 qt_major_ver="$(wget -qO- https://download.qt.io/official_releases/qt/ | sed -nr 's@.*href="([0-9]+(\.[0-9]+)*)/".*@\1@p' | grep "^${QT_VER_PREFIX}" | head -1)"
@@ -165,29 +167,18 @@ make -j$(nproc) install
 cd "${CROSS_ROOT}/bin"
 ln -sf lrelease "lrelease-qt${qt_ver:1:1}"
 
-# libiconv
-if [ ! -f "${SELF_DIR}/libiconv.tar.gz" ]; then
-  libiconv_latest_url="$(wget -qO- https://www.gnu.org/software/libiconv/ | grep -o '[^>< "]*ftp.gnu.org/pub/gnu/libiconv/.[^>< "]*' | head -1)"
-  wget -c -O "${SELF_DIR}/libiconv.tar.gz" "${libiconv_latest_url}"
-fi
-tar -zxf "${SELF_DIR}/libiconv.tar.gz" --strip-components=1 -C /usr/src/libiconv/
-cd /usr/src/libiconv/
-./configure CXXFLAGS="-std=c++17" --host="${CROSS_HOST}" --prefix="${CROSS_PREFIX}" --enable-static --disable-shared --enable-silent-rules
-make -j$(nproc)
-make install
-
 # libtorrent
-if [ ! -f "${SELF_DIR}/libtorrent.tar.gz" ]; then
-  wget -c -O "${SELF_DIR}/libtorrent.tar.gz" "https://github.com/arvidn/libtorrent/archive/${LIBTORRENT_BRANCH}.tar.gz"
+if [ ! -d "/usr/src/libtorrent" ]; then
+  git clone --depth 1 --recursive --shallow-submodules \
+    --branch "${LIBTORRENT_BRANCH}" https://github.com/arvidn/libtorrent.git \
+    /usr/src/libtorrent/
 fi
-tar -zxf "${SELF_DIR}/libtorrent.tar.gz" --strip-components=1 -C /usr/src/libtorrent
 cd /usr/src/libtorrent
 if [ "${TARGET_HOST}" = 'win' ]; then
   export LIBS="-lcrypt32 -lws2_32"
   # musl.cc x86_64-w64-mingw32 toolchain not supports thread local
   export CPPFLAGS='-D_WIN32_WINNT=0x0602 -DBOOST_NO_CXX11_THREAD_LOCAL'
 fi
-./bootstrap.sh CXXFLAGS="-std=c++17" --host="${CROSS_HOST}" --prefix="${CROSS_PREFIX}" --enable-static --disable-shared --enable-silent-rules --with-boost="${CROSS_PREFIX}" --with-libiconv
 # fix x86_64-w64-mingw32 build
 if [ "${TARGET_HOST}" = 'win' ]; then
   find -type f \( -name '*.cpp' -o -name '*.hpp' \) -print0 |
@@ -198,8 +189,7 @@ if [ "${TARGET_HOST}" = 'win' ]; then
                         s/include\s*<shared_mutex>/include "mingw.shared_mutex.h"/g;
                         s/include\s*<thread>/include "mingw.thread.h"/g'
 fi
-make -j$(nproc)
-make install
+b2 install --prefix="${CROSS_PREFIX}" crypto=openssl cxxstd=14 link=static runtime-link=static release
 unset LIBS CPPFLAGS
 
 # build qbittorrent
@@ -213,7 +203,7 @@ if [ "${TARGET_HOST}" = 'win' ]; then
   export LIBS="-lmswsock"
   export CPPFLAGS='-std=c++17 -D_WIN32_WINNT=0x0602'
 fi
-LIBS="${LIBS} -liconv" ./configure --host="${CROSS_HOST}" --prefix="${CROSS_PREFIX}" --disable-gui --with-boost="${CROSS_PREFIX}" CXXFLAGS="-std=c++17 ${CPPFLAGS}" LDFLAGS='-s -static --static'
+LIBS="${LIBS} -ltry_signal" ./configure --host="${CROSS_HOST}" --prefix="${CROSS_PREFIX}" --disable-gui --with-boost="${CROSS_PREFIX}" CXXFLAGS="-std=c++17 ${CPPFLAGS}" LDFLAGS='-s -static --static'
 make -j$(nproc)
 make install
 unset LIBS CPPFLAGS
