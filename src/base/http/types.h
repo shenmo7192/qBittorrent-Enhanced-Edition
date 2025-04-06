@@ -31,6 +31,8 @@
 
 #include <QHostAddress>
 #include <QMap>
+#include <QHash>
+#include <QByteArray> // 确保 QByteArray 可见（根据错误可能需要）
 #include <QString>
 #include <QVector>
 
